@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battle Ship – Red vs Blue</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body {
+    background: radial-gradient(circle at top, #0a0f2c, #000);
+    color: white; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; min-height: 100vh;
+  }
+  h1 { font-size: 2em; text-shadow: 0 0 10px #00f0ff; margin-bottom: 10px; }
+  #game-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(6, 40px);
+    grid-template-rows: repeat(6, 40px);
+    gap: 4px;
+  }
+  .cell {
+    width: 40px; height: 40px; border-radius: 6px;
+    background-color: #1e1e2d; cursor: pointer; transition: 0.2s;
+  }
+  .cell:hover { filter: brightness(1.4); }
+  .ship { background: #007bff; box-shadow: 0 0 8px #00bfff; }
+  .hit { background: linear-gradient(135deg, #ff3300, #ff6600); box-shadow: 0 0 15px #ff3300; }
+  .miss { background: #222; box-shadow: 0 0 6px #666 inset; }
+
+/* Màu trúng theo đội */
+.hit-red {
+  background: linear-gradient(135deg, #ff0033, #ff6600);
+  box-shadow: 0 0 15px #ff3300, 0 0 25px #ff6600;
+}
+
+.hit-blue {
+  background: linear-gradient(135deg, #00eaff, #0066ff);
+  box-shadow: 0 0 15px #00eaff, 0 0 25px #007bff;
+}
+
+  button {
+    background: linear-gradient(90deg, #006aff, #00e5ff);
+    color: white; border: none; border-radius: 6px;
+    padding: 8px 16px; margin: 5px; cursor: pointer; transition: 0.2s;
+  }
+  button:hover { transform: scale(1.05); }
+
+  #winner-popup {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,30,0.95); padding: 25px 40px;
+    border-radius: 12px; box-shadow: 0 0 20px #00ffff;
+    display: none; flex-direction: column; align-items: center;
+  }
+  #winner-popup h2 { margin-bottom: 15px; color: #00ffff; text-shadow: 0 0 10px #00ffff; }
+
+  /* ===== LOBBY ===== */
+  #lobby {
+    background: linear-gradient(135deg, #0a0a14, #14182a, #1e1e2d, #2d3b5e);
+    color: #eafcff; padding: 20px; border-radius: 14px;
+    box-shadow: 0 0 20px rgba(0,255,255,0.2);
+    width: 90%; max-width: 460px; text-align: center;
+    animation: movebg 10s infinite alternate ease-in-out;
+  }
+  @keyframes movebg {
+    0%{background-position:0% 50%}
+    50%{background-position:100% 50%}
+    100%{background-position:0% 50%}
+  }
+  #lobby h1{color:#bffaff;text-shadow:0 0 10px #00f6ff;}
+  .choice{margin:10px 0}
+  .choice label{margin:0 10px;cursor:pointer;}
+  #credits-box{display:none;margin-top:15px;font-size:13px;line-height:1.4;
+    background:rgba(255,255,255,0.05);padding:10px;border-radius:10px;}
+  .lb-actions{margin-top:12px;}
+  #start-battle{
+    background:linear-gradient(90deg,#00c3ff,#0077ff);
+    color:#00141f;font-weight:700;
+    border-radius:10px;padding:10px 18px;
+    box-shadow:0 0 18px rgba(0,195,255,0.3);
+  }
+  #toggle-credits{
+    background:linear-gradient(90deg,#ff7a00,#ffcc00);
+    color:#1e1e1e;font-weight:700;
+    border-radius:10px;padding:10px 12px;
+    box-shadow:0 0 18px rgba(255,140,0,0.3);
+  }
+
+  /* Nút glow khi đủ tàu */
+  #done-btn.ready {
+    background: linear-gradient(90deg, #00ffb7, #00ffff);
+    box-shadow: 0 0 15px #00ffb7, 0 0 30px #00ffff;
+    animation: glowReady 1.5s infinite alternate;
+  }
+  @keyframes glowReady {
+    from { box-shadow: 0 0 10px #00ffb7; }
+    to { box-shadow: 0 0 25px #00ffff; }
+  }
+
+  /* Nút reset */
+  #reset-btn {
+    background: linear-gradient(90deg, #ff005c, #ff4b2b);
+    box-shadow: 0 0 10px rgba(255, 60, 60, 0.4);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  #reset-btn:hover { transform: scale(1.05); }
+
+</style>
+</head>
+<body>
+
+  <!-- ======= LOBBY ======= -->
+  <div id="lobby">
+    <h1>⚓ Battle Ship – Phòng chờ</h1>
+
+    <div class="lb-actions">
+      <button id="start-battle">Bắt đầu</button>
+      <button id="toggle-credits">📜 Điều khoản & Credit</button>
+    </div>
+
+    <div id="credits-box">
+      <h3>📜 Điều khoản sử dụng</h3>
+      <p>✓Trò chơi này chỉ phục vụ mục đích giải trí.</p>
+      <p>✓Dữ liệu không được thu thập.</p>
+      <h3>💡 Credit</h3>
+      <p>Làm bởi: <b><strong>Khangbo84</strong></b>
+    </div>
+  </div>
+
+  <!-- ======= GAME ======= -->
+  <div id="game-container" style="display:none;">
+    <h1>Battle Ship Game</h1>
+
+    <div id="setup">
+      <h3 id="setup-title">🔴 Người chơi Đỏ – Đặt tàu</h3>
+      <div id="board-setup" class="board"></div>
+      <div class="setup-buttons">
+        <button id="rotate-btn">🔁 Xoay tàu</button>
+        <button id="reset-btn">🔄 Đặt lại</button>
+        <button id="done-btn" disabled>✅ Hoàn tất</button>
+      </div>
+    </div>
+
+    <div id="battle" style="display:none;">
+      <h3 id="turn-indicator">Lượt của 🔴 Đỏ</h3>
+      <div id="player1-view" class="board"></div>
+      <div id="player2-view" class="board" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div id="winner-popup">
+    <h2 id="winner-name"></h2>
+    <button id="restart-btn">Chơi lại</button>
+  </div>
+
+<script>
+/* === ÂM THANH === */
+const sounds = {
+  place: new Audio("https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/click.mp3"),
+  hit: new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_99db1d97b0.mp3?filename=hitmarker.mp3"),
+  miss: new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_7a6c356615.mp3?filename=click-124467.mp3"),
+  win: new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_40e7e1cbe5.mp3?filename=success-1-6297.mp3")
+};
+
+/* === Lobby control === */
+const startBtn=document.getElementById('start-battle');
+const toggle=document.getElementById('toggle-credits');
+const credits=document.getElementById('credits-box');
+startBtn.onclick=()=>{
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('game-container').style.display='flex';
+};
+toggle.onclick=()=>{
+  credits.style.display=credits.style.display==='block'?'none':'block';
+};
+
+/* === Game logic === */
+const size = 6;
+let orientation = 'horizontal';
+let currentPlayer = 1;
+let shipIndex = 0;
+let phase = 'setup';
+const shipsToPlace = [3, 2, 2, 1, 1];
+const playerBoards = [Array(size*size).fill(0), Array(size*size).fill(0)];
+
+const setupDiv = document.getElementById("setup");
+const battleDiv = document.getElementById("battle");
+const setupTitle = document.getElementById("setup-title");
+const boardSetup = document.getElementById("board-setup");
+const rotateBtn = document.getElementById("rotate-btn");
+const resetBtn = document.getElementById("reset-btn");
+const doneBtn = document.getElementById("done-btn");
+const turnIndicator = document.getElementById("turn-indicator");
+const view1 = document.getElementById("player1-view");
+const view2 = document.getElementById("player2-view");
+const winnerPopup = document.getElementById("winner-popup");
+const winnerName = document.getElementById("winner-name");
+const restartBtn = document.getElementById("restart-btn");
+
+function createBoard(el, clickHandler) {
+  el.innerHTML = '';
+  for (let i = 0; i < size*size; i++) {
+    const cell = document.createElement('div');
+    cell.classList.add('cell');
+    cell.dataset.index = i;
+    cell.addEventListener('click', () => clickHandler(i));
+    el.appendChild(cell);
+  }
+}
+function coord(i){ return {x: i % size, y: Math.floor(i / size)}; }
+function idx(x,y){ return y*size + x; }
+
+function canPlace(board,x,y,len,ori){
+  for(let i=0;i<len;i++){
+    const nx = ori==='horizontal'?x+i:x;
+    const ny = ori==='vertical'?y+i:y;
+    if(nx>=size||ny>=size||board[idx(nx,ny)]===1)return false;
+  }
+  return true;
+}
+function placeShip(board,x,y,len,ori){
+  for(let i=0;i<len;i++){
+    const nx = ori==='horizontal'?x+i:x;
+    const ny = ori==='vertical'?y+i:y;
+    board[idx(nx,ny)]=1;
+  }
+}
+function draw(el, board, showShip=false){
+  [...el.children].forEach((c,i)=>{
+    c.className = 'cell';
+    if (board[i] === 1 && showShip) c.classList.add('ship');
+    else if (board[i] === 2) c.classList.add('miss');
+    else if (board[i] === 3) c.classList.add('hit');
+    else if (board[i] === 4) c.classList.add('hit-red');
+    else if (board[i] === 5) c.classList.add('hit-blue');
+  });
+}
+
+function setupClick(i){
+  const {x,y}=coord(i);
+  const len=shipsToPlace[shipIndex];
+  const board=playerBoards[currentPlayer-1];
+  if(canPlace(board,x,y,len,orientation)){
+    placeShip(board,x,y,len,orientation);
+    sounds.place.play();
+    draw(boardSetup,board,true);
+    shipIndex++;
+    if(shipIndex>=shipsToPlace.length){
+      doneBtn.disabled=false;
+      doneBtn.classList.add('ready');
+    }
+  }
+}
+
+resetBtn.onclick = ()=>{
+  playerBoards[currentPlayer-1] = Array(size*size).fill(0);
+  shipIndex = 0;
+  draw(boardSetup, playerBoards[currentPlayer-1], true);
+  doneBtn.disabled = true;
+  doneBtn.classList.remove('ready');
+};
+
+function nextPlayer(){
+  if(currentPlayer===1){
+    currentPlayer=2;
+    shipIndex=0;
+    doneBtn.disabled=true;
+    doneBtn.classList.remove('ready');
+    setupTitle.textContent="🔵 Người chơi Xanh – Đặt tàu";
+    draw(boardSetup,playerBoards[1],true);
+  }else startBattle();
+}
+
+function startBattle(){
+  phase='battle';
+  setupDiv.style.display='none';
+  battleDiv.style.display='block';
+  currentPlayer=1;
+  showCurrentBoard();
+}
+
+function handleBattleClick(i){
+  if(phase!=='battle')return;
+  const opponent=currentPlayer===1?1:0;
+  const targetBoard=playerBoards[opponent];
+  const view=currentPlayer===1?view1:view2;
+  if(targetBoard[i]===2||targetBoard[i]===3)return;
+  if(targetBoard[i]===1){
+  // Đánh dấu theo người bắn (4 = đỏ, 5 = xanh)
+  targetBoard[i] = currentPlayer === 1 ? 4 : 5;
+  sounds.hit.play();
+  draw(view, targetBoard);
+
+  if(targetBoard.every(c => c !== 1)){
+    sounds.win.play();
+    showWinner(currentPlayer === 1 ? "🔴 Đỏ" : "🔵 Xanh");
+    return;
+  }
+}
+else{
+    targetBoard[i]=2;
+    sounds.miss.play();
+    draw(view,targetBoard);
+    currentPlayer=currentPlayer===1?2:1;
+    showCurrentBoard();
+  }
+}
+
+function showCurrentBoard(){
+  if(currentPlayer===1){
+    view1.style.display='grid';
+    view2.style.display='none';
+    draw(view1,playerBoards[1]);
+    turnIndicator.textContent="Lượt của 🔴 Đỏ";
+  }else{
+    view1.style.display='none';
+    view2.style.display='grid';
+    draw(view2,playerBoards[0]);
+    turnIndicator.textContent="Lượt của 🔵 Xanh";
+  }
+}
+function showWinner(name){
+  winnerPopup.style.display='flex';
+  winnerName.textContent="🏆 Người thắng: "+name;
+}
+
+rotateBtn.onclick=()=>{orientation=orientation==='horizontal'?'vertical':'horizontal';};
+doneBtn.onclick=()=>{doneBtn.disabled=true;nextPlayer();};
+restartBtn.onclick=()=>location.reload();
+
+doneBtn.disabled = true;
+
+createBoard(boardSetup,setupClick);
+createBoard(view1,handleBattleClick);
+createBoard(view2,handleBattleClick);
+draw(boardSetup,playerBoards[0],true);
+</script>
+</body>
+</html>
